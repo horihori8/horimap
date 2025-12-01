@@ -3,256 +3,282 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アメリカ主要都市 マップクイズ</title>
+    <title>アメリカ主要都市 位置当てクイズ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
             font-family: "Helvetica Neue", Arial, sans-serif;
-            text-align: center;
-            background-color: #f4f4f4;
             margin: 0;
-            padding: 20px;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-        }
-        #game-container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        /* マップ表示エリア */
-        #map-area {
-            position: relative;
-            width: 100%;
-            /* 画像の読み込み遅延によるレイアウト崩れを防ぐため、アスペクト比を維持するか枠を確保 */
-            min-height: 400px; 
-            margin-bottom: 20px;
-            border: 2px solid #ddd;
-            overflow: hidden;
-        }
-        #us-map {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-        /* 赤いピンのデザイン */
-        .pin {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background-color: red;
-            border: 2px solid white;
-            border-radius: 50%;
-            transform: translate(-50%, -50%); /* 中心を座標に合わせる */
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-            animation: pulse 1.5s infinite;
-            cursor: pointer;
-            z-index: 10;
-        }
-        /* ピンのアニメーション */
-        @keyframes pulse {
-            0% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
-            70% { transform: translate(-50%, -50%) scale(1.2); box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
-            100% { transform: translate(-50%, -50%) scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f4;
+            height: 100vh;
         }
 
-        /* クイズUI */
-        #question-text {
+        header {
+            background-color: #333;
+            color: white;
+            width: 100%;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        #game-info {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            max-width: 1000px;
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        #question-box {
             font-size: 1.2rem;
-            margin-bottom: 15px;
             font-weight: bold;
+            color: #d32f2f;
         }
-        #options-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+
+        #score-box {
+            font-size: 1.1rem;
         }
-        button.option-btn {
-            background-color: #007BFF;
+
+        #map-container {
+            width: 90%;
+            max-width: 1000px;
+            height: 65vh; /* 画面の高さの65% */
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+        }
+
+        #message {
+            margin-top: 10px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            height: 1.5em;
+        }
+
+        .correct-msg { color: green; }
+        .wrong-msg { color: red; }
+
+        button#restart-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background-color: #007bff;
             color: white;
             border: none;
-            padding: 15px;
-            font-size: 1rem;
             border-radius: 5px;
             cursor: pointer;
-            transition: background 0.3s;
+            font-size: 1rem;
+            display: none; /* 最初は非表示 */
         }
-        button.option-btn:hover {
+        button#restart-btn:hover {
             background-color: #0056b3;
         }
-        button.option-btn:disabled {
-            background-color: #ccc;
-            cursor: default;
-        }
-        /* 正解・不正解の色 */
-        button.correct {
-            background-color: #28a745 !important;
-        }
-        button.wrong {
-            background-color: #dc3545 !important;
-        }
 
-        #score-board {
-            margin-top: 15px;
-            font-size: 1rem;
-            color: #555;
+        /* スマホ向けの調整 */
+        @media (max-width: 600px) {
+            #game-info { flex-direction: column; text-align: center; }
+            #question-box { margin-bottom: 5px; }
+            #map-container { height: 60vh; }
         }
-        #result-message {
-            font-weight: bold;
-            height: 1.5em; /* メッセージがない時も高さを確保 */
-            margin-bottom: 10px;
-            color: #333;
-        }
-
     </style>
 </head>
 <body>
 
-<div id="game-container">
-    <h1>アメリカ都市当てクイズ</h1>
-    <p>地図上の<span style="color:red; font-weight:bold;">赤いピン</span>が指している都市はどこでしょう？</p>
-    
-    <div id="score-board">正解数: <span id="score">0</span> / <span id="total">0</span></div>
+<header>
+    <h1>🇺🇸 アメリカ主要都市 位置当てクイズ</h1>
+</header>
 
-    <div id="map-area">
-        <img id="us-map" src="IMG_6534.jpg" alt="USA Map">
-        <div id="target-pin" class="pin"></div>
-    </div>
-
-    <div id="result-message"></div>
-
-    <div id="question-text">都市を選んでください:</div>
-    <div id="options-container">
-        </div>
+<div id="game-info">
+    <div id="question-box">出題: <span id="current-city-name">---</span></div>
+    <div id="score-box">正解数: <span id="score">0</span> / <span id="total">0</span></div>
 </div>
 
+<div id="message"></div>
+
+<div id="map-container">
+    <div id="map"></div>
+</div>
+
+<button id="restart-btn" onclick="restartGame()">もう一度遊ぶ</button>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-    // 都市データ：座標（top, left）は画像の左上からのパーセンテージです。
-    // ※画像の投影法に合わせて微調整が必要な場合があります。
-    const cities = [
-        { name: "シアトル", top: 6, left: 13 },
-        { name: "サンフランシスコ", top: 34, left: 6 },
-        { name: "ラスベガス", top: 41, left: 15 },
-        { name: "ロサンゼルス", top: 48, left: 10 },
-        { name: "サンディエゴ", top: 52, left: 12 },
-        { name: "サンノゼ", top: 36, left: 7 }, // SFのすぐ南
-        { name: "フェニックス", top: 53, left: 20 },
-        { name: "エルパソ", top: 63, left: 30 },
-        { name: "ダラス", top: 60, left: 47 },
-        { name: "ヒューストン", top: 76, left: 49 },
-        { name: "ニューオーリンズ", top: 76, left: 60 },
-        { name: "マイアミ", top: 92, left: 81 },
-        { name: "アトランタ", top: 62, left: 72 },
-        { name: "セントルイス", top: 46, left: 60 },
-        { name: "シカゴ", top: 33, left: 65 },
-        { name: "デトロイト", top: 31, left: 73 },
-        { name: "ピッツバーグ", top: 35, left: 80 },
-        { name: "ボストン", top: 25, left: 93 },
-        { name: "ニューヨーク", top: 30, left: 89 },
-        { name: "フィラデルフィア", top: 34, left: 87 },
-        { name: "ボルティモア", top: 37, left: 85 }, // DCの近く
-        { name: "ワシントンDC", top: 39, left: 84 }
+    // 都市データ（緯度・経度）
+    const citiesData = [
+        { name: "シアトル", lat: 47.6062, lng: -122.3321 },
+        { name: "サンフランシスコ", lat: 37.7749, lng: -122.4194 },
+        { name: "ラスベガス", lat: 36.1699, lng: -115.1398 },
+        { name: "ロサンゼルス", lat: 34.0522, lng: -118.2437 },
+        { name: "サンディエゴ", lat: 32.7157, lng: -117.1611 },
+        { name: "サンノゼ", lat: 37.3382, lng: -121.8863 },
+        { name: "フェニックス", lat: 33.4484, lng: -112.0740 },
+        { name: "エルパソ", lat: 31.7619, lng: -106.4850 },
+        { name: "ダラス", lat: 32.7767, lng: -96.7970 },
+        { name: "ヒューストン", lat: 29.7604, lng: -95.3698 },
+        { name: "ニューオーリンズ", lat: 29.9511, lng: -90.0715 },
+        { name: "マイアミ", lat: 25.7617, lng: -80.1918 },
+        { name: "アトランタ", lat: 33.7490, lng: -84.3880 },
+        { name: "セントルイス", lat: 38.6270, lng: -90.1994 },
+        { name: "シカゴ", lat: 41.8781, lng: -87.6298 },
+        { name: "デトロイト", lat: 42.3314, lng: -83.0458 },
+        { name: "ピッツバーグ", lat: 40.4406, lng: -79.9959 },
+        { name: "ボストン", lat: 42.3601, lng: -71.0589 },
+        { name: "ニューヨーク", lat: 40.7128, lng: -74.0060 },
+        { name: "フィラデルフィア", lat: 39.9526, lng: -75.1652 },
+        { name: "ボルティモア", lat: 39.2904, lng: -76.6122 },
+        { name: "ワシントンDC", lat: 38.9072, lng: -77.0369 }
     ];
 
-    let currentCity = null;
+    let map;
+    let markers = [];
+    let currentQuestionIndex = 0;
     let score = 0;
-    let questionCount = 0;
-    const totalQuestions = 10; // 1ゲームあたりの出題数（変更可能）
+    let questionOrder = [];
+    let canClick = true;
 
-    // DOM要素
-    const pin = document.getElementById('target-pin');
-    const optionsContainer = document.getElementById('options-container');
-    const resultMessage = document.getElementById('result-message');
-    const scoreEl = document.getElementById('score');
-    const totalEl = document.getElementById('total');
+    // ゲームの初期化
+    function initGame() {
+        // 地図の表示（アメリカ全体が表示されるように調整）
+        map = L.map('map').setView([39.8283, -98.5795], 4);
 
-    // 配列をシャッフルする関数
-    function shuffleArray(array) {
-        for (let i = array.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [array[i], array[j]] = [array[j], array[i]];
-        }
-        return array;
+        // 地図タイルの読み込み（OpenStreetMapを使用）
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // 全都市にマーカーを設置
+        citiesData.forEach((city, index) => {
+            const marker = L.marker([city.lat, city.lng]).addTo(map);
+            
+            // マーカーにクリックイベントを追加
+            marker.on('click', function() {
+                checkAnswer(city.name, this);
+            });
+
+            // マーカーに都市データを紐付け
+            marker.cityName = city.name;
+            markers.push(marker);
+        });
+
+        startQuiz();
     }
 
-    // 新しい問題をセットする
-    function nextQuestion() {
-        resultMessage.textContent = "";
-        resultMessage.style.color = "#333";
+    // クイズ開始処理
+    function startQuiz() {
+        score = 0;
+        currentQuestionIndex = 0;
+        document.getElementById('restart-btn').style.display = 'none';
         
-        // ランダムに正解の都市を選ぶ
-        currentCity = cities[Math.floor(Math.random() * cities.length)];
+        // 出題順をシャッフル
+        questionOrder = [...citiesData].sort(() => Math.random() - 0.5);
+        
+        updateScoreBoard();
+        showNextQuestion();
+    }
 
-        // ピンの位置を移動
-        pin.style.top = currentCity.top + "%";
-        pin.style.left = currentCity.left + "%";
+    // 次の問題を表示
+    function showNextQuestion() {
+        if (currentQuestionIndex >= questionOrder.length) {
+            endGame();
+            return;
+        }
 
-        // 選択肢の生成（正解1つ + 不正解3つ）
-        let options = [currentCity];
-        
-        // 不正解の候補を作成（自分以外）
-        let distractors = cities.filter(c => c.name !== currentCity.name);
-        shuffleArray(distractors);
-        
-        // 不正解を3つ追加
-        options.push(distractors[0], distractors[1], distractors[2]);
-        
-        // 選択肢の並び順をシャッフル
-        shuffleArray(options);
-
-        // ボタンを描画
-        optionsContainer.innerHTML = "";
-        options.forEach(city => {
-            const btn = document.createElement('button');
-            btn.className = "option-btn";
-            btn.textContent = city.name;
-            btn.onclick = () => checkAnswer(city, btn);
-            optionsContainer.appendChild(btn);
-        });
+        canClick = true;
+        const targetCity = questionOrder[currentQuestionIndex];
+        document.getElementById('current-city-name').textContent = targetCity.name;
+        document.getElementById('message').textContent = "地図上のピンを選んでクリックしてください";
+        document.getElementById('message').className = "";
     }
 
     // 答え合わせ
-    function checkAnswer(selectedCity, btnElement) {
-        // すべてのボタンを無効化（連打防止）
-        const buttons = document.querySelectorAll('.option-btn');
-        buttons.forEach(b => b.disabled = true);
+    function checkAnswer(clickedCityName, marker) {
+        if (!canClick) return;
 
-        if (selectedCity.name === currentCity.name) {
+        const targetCity = questionOrder[currentQuestionIndex];
+        const messageEl = document.getElementById('message');
+
+        if (clickedCityName === targetCity.name) {
             // 正解
-            btnElement.classList.add('correct');
-            resultMessage.textContent = "正解！";
-            resultMessage.style.color = "green";
+            messageEl.textContent = `正解！ これは ${clickedCityName} です。`;
+            messageEl.className = "correct-msg";
             score++;
+            
+            // 正解のポップアップを表示
+            marker.bindPopup(`<b>${clickedCityName}</b><br>正解！`).openPopup();
+            
+            canClick = false;
+            setTimeout(() => {
+                marker.closePopup();
+                currentQuestionIndex++;
+                updateScoreBoard();
+                showNextQuestion();
+            }, 1500); // 1.5秒後に次の問題へ
+
         } else {
             // 不正解
-            btnElement.classList.add('wrong');
-            resultMessage.textContent = `残念... 正解は「${currentCity.name}」でした。`;
-            resultMessage.style.color = "red";
+            messageEl.textContent = `残念... それは ${clickedCityName} です。正解は ${targetCity.name} でした。`;
+            messageEl.className = "wrong-msg";
             
-            // 正解のボタンを教えてあげる
-            buttons.forEach(b => {
-                if (b.textContent === currentCity.name) {
-                    b.classList.add('correct');
-                }
-            });
+            // 間違えた場所の名前を表示
+            marker.bindPopup(`<b>${clickedCityName}</b><br>不正解`).openPopup();
+
+            canClick = false;
+            // 正解の場所を少し教えてあげる（地図を移動し、正解のマーカーでポップアップ）
+            const correctMarker = markers.find(m => m.cityName === targetCity.name);
+            
+            setTimeout(() => {
+                marker.closePopup(); // 間違えた方のポップアップを閉じる
+                // 正解の場所へパン（移動）
+                // map.panTo(correctMarker.getLatLng()); // 難易度を下げるならコメントアウトを外す
+                correctMarker.bindPopup(`<b>${targetCity.name}</b><br>ここが正解でした`).openPopup();
+                
+                setTimeout(() => {
+                    correctMarker.closePopup();
+                    currentQuestionIndex++;
+                    updateScoreBoard();
+                    showNextQuestion();
+                }, 2000);
+            }, 1000);
         }
-
-        questionCount++;
-        scoreEl.textContent = score;
-        totalEl.textContent = questionCount;
-
-        // 次の問題へ（少し待ってから）
-        setTimeout(() => {
-            nextQuestion();
-        }, 1500);
     }
 
-    // 初期化
-    nextQuestion();
+    // スコア表示更新
+    function updateScoreBoard() {
+        document.getElementById('score').textContent = score;
+        document.getElementById('total').textContent = questionOrder.length;
+    }
+
+    // ゲーム終了
+    function endGame() {
+        document.getElementById('question-box').textContent = "終了！";
+        document.getElementById('message').textContent = `あなたのスコアは ${score} / ${citiesData.length} でした！`;
+        document.getElementById('message').className = "";
+        document.getElementById('restart-btn').style.display = 'block';
+    }
+
+    function restartGame() {
+        // マーカーのポップアップを全て閉じる
+        map.closePopup();
+        startQuiz();
+    }
+
+    // ページ読み込み時にゲーム初期化
+    window.onload = initGame;
 
 </script>
 
